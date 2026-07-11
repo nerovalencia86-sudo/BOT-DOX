@@ -2,7 +2,7 @@ const { Telegraf } = require('telegraf');
 const axios = require('axios');
 
 // ⚠️ REEMPLAZA ESTO CON EL TOKEN QUE TE DIO @BotFather
-const bot = new Telegraf('TU_TELEGRAM_BOT_TOKEN'); 
+const bot = new Telegraf('8664870579:AAGW8_IVPc98S3U4SRrY4mxjYvuqV4apkdI'); 
 
 // ID del Dueño Absoluto
 const OWNER_ID = 8116120039;
@@ -107,7 +107,6 @@ bot.command('me', async (ctx) => {
 // SECCIÓN DE VENTAS Y SELLE (Sellers)
 // ==========================================
 
-// Registrar vendedores en el bot (Solo ejecutable por el Owner)
 bot.command('addseller', (ctx) => {
     if (ctx.from.id !== OWNER_ID) return;
     const sellerId = parseInt(ctx.message.text.split(' ')[1]);
@@ -122,7 +121,6 @@ bot.command('addseller', (ctx) => {
     ctx.reply(`✅ El ID \`${sellerId}\` ha sido agregado como Seller autorizado.`, { parse_mode: 'Markdown' });
 });
 
-// Generar ventas por ID de usuario (Ejecutable por Owner y Sellers registrados)
 bot.command('vender', async (ctx) => {
     const sellerId = ctx.from.id;
     const esSeller = database.sellers.includes(sellerId) || sellerId === OWNER_ID;
@@ -146,14 +144,12 @@ bot.command('vender', async (ctx) => {
 
     ctx.reply(`✅ *Venta exitosa!*\n🎯 *Cliente ID:* \`${clienteId}\`\n⏱ *Acceso:* \`${tiempo === 'perm' ? 'Permanente' : tiempo + ' días'}\``, { parse_mode: 'Markdown' });
 
-    // Notificar de manera privada al comprador que su cuenta se activó
     try {
         await bot.telegram.sendMessage(clienteId, `🎉 *¡Tu acceso ha sido activado con éxito!*\n\n⏱️ *Duración:* ${tiempo === 'perm' ? 'Permanente' : tiempo + ' días'}\n\nPresiona /nequi para empezar.`, { parse_mode: 'Markdown' });
     } catch (e) {
         ctx.reply("⚠️ El cliente no ha iniciado el bot todavía, pero ya está guardado en el sistema.");
     }
 
-    // Alerta inmediata al Owner con el username del vendedor y su ID
     if (sellerId !== OWNER_ID) {
         const vendedorUsername = ctx.from.username ? `@${ctx.from.username}` : "No configurado";
         await bot.telegram.sendMessage(OWNER_ID, 
@@ -175,10 +171,7 @@ bot.command('vender', async (ctx) => {
 bot.on('text', async (ctx) => {
     const userId = ctx.from.id;
 
-    // Detener si el usuario no ejecutó el paso previo del comando /nequi
     if (!esperandoNumero[userId]) return;
-    
-    // Desactivar bandera de escucha
     delete esperandoNumero[userId];
 
     const numero = ctx.message.text.trim();
@@ -224,7 +217,6 @@ bot.on('text', async (ctx) => {
         await delay(400);
         await ctx.telegram.editMessageText(ctx.chat.id, mensajeCarga.message_id, null, "⚡ *Conectando con la API...*\n`[████░░░░░░] 40%`", { parse_mode: 'Markdown' }).catch(()=>{});
         
-        // Petición Real a la API Externa usando Axios
         const url = `https://cuervo-api.vercel.app/nequi/${numero}?key=ohhyejin1`;
         const response = await axios.get(url);
         const data = response.data;
@@ -232,23 +224,21 @@ bot.on('text', async (ctx) => {
         await delay(400);
         await ctx.telegram.editMessageText(ctx.chat.id, mensajeCarga.message_id, null, "🔍 *Extrayendo información...*\n`[████████░░] 80%`", { parse_mode: 'Markdown' }).catch(()=>{});
 
-        // 3. CAPTURA DE ERROR DE TIEMPO DE ESPERA (21 minutos)[cite: 1]
+        // 3. CAPTURA DE ERROR DE TIEMPO DE ESPERA
         if (data.error) {
             await ctx.telegram.deleteMessage(ctx.chat.id, mensajeCarga.message_id).catch(() => {});
             
-            if (data.error.includes("waiting period")) {[cite: 1]
+            if (data.error.includes("waiting period")) {
                 return ctx.reply("❌ *SISTEMA BLOQUEADO TEMPORALMENTE*\n\n⚠️ Espera unos minutos y vuelve a consultar.\nLa API requiere un tiempo de espera obligatorio.\n\n*by : @El_CuervoX*", { parse_mode: 'Markdown' });
             }
             return ctx.reply(`⚠️ *ERROR DE API:*\n\`${data.error}\`\n\n*by : @El_CuervoX*`, { parse_mode: 'Markdown' });
         }
 
-        // Guardar resultado limpio en el almacenamiento de Caché
         cacheConsultas[numero] = data;
 
         await delay(200);
         await ctx.telegram.editMessageText(ctx.chat.id, mensajeCarga.message_id, null, "✨ *Estructurando datos...*\n`[██████████] 100%`", { parse_mode: 'Markdown' }).catch(()=>{});
 
-        // Cálculo del tiempo total que consumió la carga real
         const tiempoTotal = ((Date.now() - tiempoInicio) / 1000).toFixed(2);
 
         // 4. RESPUESTA IMPRESA FORMATEADA Y PREMIUM
@@ -269,7 +259,6 @@ bot.on('text', async (ctx) => {
         respuestaBonita += `─────────────────────────\n`;
         respuestaBonita += `✨ *by : @El_CuervoX*`;
 
-        // Remover barra y desplegar panel de datos final
         await ctx.telegram.deleteMessage(ctx.chat.id, mensajeCarga.message_id).catch(() => {});
         ctx.reply(respuestaBonita, { parse_mode: 'Markdown' });
 
@@ -279,5 +268,11 @@ bot.on('text', async (ctx) => {
     }
 });
 
-// Lanzamiento del bot
+// Servidor web interno para mantener vivo el Web Service Gratis en Render
+const http = require('http');
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot Online\n');
+}).listen(process.env.PORT || 3000);
+
 bot.launch();
