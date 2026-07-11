@@ -44,28 +44,8 @@ async function verificarAcceso(ctx) {
     }
 }
 
-// ==========================================
-// COMANDO /START Y FLUJO /NEQUI
-// ==========================================
-
-bot.start((ctx) => {
-    ctx.reply("👁️ Bienvenido al Ojo de Dios. Para hacer tu consulta presiona el comando /nequi");
-});
-
-bot.command('nequi', async (ctx) => {
-    const accesoAutorizado = await verificarAcceso(ctx);
-    if (!accesoAutorizado) return;
-
-    // Habilitar la escucha del siguiente mensaje de texto de este ID
-    esperandoNumero[ctx.from.id] = true;
-    ctx.reply("📱 Envía el número a consultar:");
-});
-
-// ==========================================
-// COMANDO /ME (PERFIL DE USUARIO)
-// ==========================================
-
-bot.command('me', async (ctx) => {
+// Función auxiliar para generar el panel /start (se reutiliza si un usuario usa /panel)
+function enviarStart(ctx) {
     const userId = ctx.from.id;
     const username = ctx.from.username ? `@${ctx.from.username}` : "No configurado";
     const nombreCompleto = `${ctx.from.first_name} ${ctx.from.last_name || ''}`.trim();
@@ -90,21 +70,134 @@ bot.command('me', async (ctx) => {
         }
     }
 
-    let panelUsuario = `╔════════════════════════╗\n`;
-    panelUsuario += `   👤   *MI PERFIL DE ACCESO*   \n`;
-    panelUsuario += `╚════════════════════════╝\n\n`;
-    panelUsuario += `🆔 *Tu ID:* \`${userId}\`\n`;
-    panelUsuario += `👤 *Usuario:* ${username}\n`;
-    panelUsuario += `📝 *Nombre:* \`${nombreCompleto}\`\n`;
-    panelUsuario += `🏅 *Membresía:* *${tipoMembresia}*\n`;
-    panelUsuario += `─────────────────────────\n`;
-    panelUsuario += `✨ *by : @El_CuervoX*`;
+    let bienvenidaPanel = `👁️ *¡Bienvenido al Ojo de Dios!*\n`;
+    bienvenidaPanel += `Para realizar una consulta presiona el comando /nequi\n\n`;
+    bienvenidaPanel += `╔════════════════════════╗\n`;
+    bienvenidaPanel += `   👤   *MI PERFIL DE ACCESO*   \n`;
+    bienvenidaPanel += `╚════════════════════════╝\n\n`;
+    bienvenidaPanel += `🆔 *Tu ID:* \`${userId}\`\n`;
+    bienvenidaPanel += `👤 *Usuario:* ${username}\n`;
+    bienvenidaPanel += `📝 *Nombre:* \`${nombreCompleto}\`\n`;
+    bienvenidaPanel += `🏅 *Membresía:* *${tipoMembresia}*\n`;
+    bienvenidaPanel += `─────────────────────────\n`;
+    bienvenidaPanel += `✨ *by : @El_CuervoX*`;
 
-    ctx.reply(panelUsuario, { parse_mode: 'Markdown' });
+    ctx.reply(bienvenidaPanel, { parse_mode: 'Markdown' });
+}
+
+// ==========================================
+// COMANDO /START (UNIFICADO CON /ME)
+// ==========================================
+
+bot.start((ctx) => {
+    enviarStart(ctx);
+});
+
+bot.command('nequi', async (ctx) => {
+    const accesoAutorizado = await verificarAcceso(ctx);
+    if (!accesoAutorizado) return;
+
+    esperandoNumero[ctx.from.id] = true;
+    ctx.reply("📱 Envía el número a consultar:");
 });
 
 // ==========================================
-// SECCIÓN DE VENTAS Y SELLE (Sellers)
+// COMANDO /PANEL (Sellers y Owner)
+// ==========================================
+
+bot.command('panel', (ctx) => {
+    const userId = ctx.from.id;
+    const esSeller = database.sellers.includes(userId);
+    const esOwner = userId === OWNER_ID;
+
+    // RESTRICCIÓN: Si no es ni seller ni owner, se le deniega el panel y se le manda su /start
+    if (!esSeller && !esOwner) {
+        return enviarStart(ctx);
+    }
+
+    let menu = `╔════════════════════════╗\n`;
+    menu += `   ⚙️   *PANEL DE CONTROL*   \n`;
+    menu += `╚════════════════════════╝\n\n`;
+    
+    if (esOwner) {
+        menu += `👑 *RANGO:* \`Owner / Dueño\`\n\n`;
+        menu += `📝 *COMANDOS DISPONIBLES:*\n`;
+        menu += `🔹 \`/vender [ID] [Dias/perm]\` ➔ Asignar membresías\n`;
+        menu += `🔹 \`/lista\` ➔ Ver vendedores y clientes VIP\n`;
+        menu += `🔹 \`/addseller [ID]\` ➔ Registrar un vendedor\n`;
+        menu += `🔹 \`/delseller [ID]\` ➔ Eliminar un vendedor\n`;
+    } else if (esSeller) {
+        menu += `💼 *RANGO:* \`Seller Autorizado\`\n\n`;
+        menu += `📝 *COMANDOS DISPONIBLES:*\n`;
+        menu += `🔹 \`/vender [ID] [Dias/perm]\` ➔ Asignar membresías\n`;
+        menu += `🔹 \`/lista\` ➔ Ver clientes VIP de la base de datos\n`;
+    }
+
+    menu += `─────────────────────────\n`;
+    menu += `✨ *by : @El_CuervoX*`;
+
+    ctx.reply(menu, { parse_mode: 'Markdown' });
+});
+
+// ==========================================
+// COMANDO /LISTA (Ver Vendedores y VIPs)
+// ==========================================
+
+bot.command('lista', (ctx) => {
+    const userId = ctx.from.id;
+    const esSeller = database.sellers.includes(userId);
+    const esOwner = userId === OWNER_ID;
+
+    if (!esSeller && !esOwner) return; // Comando oculto para usuarios normales
+
+    let output = `╔════════════════════════╗\n`;
+    output += `   📋   *BASE DE DATOS ACTIVA*   \n`;
+    output += `╚════════════════════════╝\n\n`;
+
+    // 1. Mostrar Sellers (Solo si el que ejecuta es el Owner)
+    if (esOwner) {
+        output += `💼 *VENDEDORES AUTORIZADOS (${database.sellers.length}):*\n`;
+        if (database.sellers.length === 0) {
+            output += `_No hay vendedores registrados_\n`;
+        } else {
+            database.sellers.forEach(id => {
+                output += ` ├ \`${id}\`\n`;
+            });
+        }
+        output += `─────────────────────────\n\n`;
+    }
+
+    // 2. Mostrar Clientes VIP Activos
+    const vipsKeys = Object.keys(database.vips);
+    output += `💎 *CLIENTES CON ACCESO VIP (${vipsKeys.length}):*\n`;
+    
+    if (vipsKeys.length === 0) {
+        output += `_No hay clientes registrados en el sistema_\n`;
+    } else {
+        vipsKeys.forEach(id => {
+            const acceso = database.vips[id];
+            if (acceso === 'perm') {
+                output += ` ├ 🆔 \`${id}\` ➔ \`💎 Permanente\`\n`;
+            } else {
+                const expira = new Date(acceso);
+                if (expira > new Date()) {
+                    const fechaFormat = expira.toISOString().split('T')[0];
+                    output += ` ├ 🆔 \`${id}\` ➔ \`⏱️ Vence: ${fechaFormat}\`\n`;
+                } else {
+                    output += ` ├ 🆔 \`${id}\` ➔ \`❌ Expirado\`\n`;
+                }
+            }
+        });
+    }
+
+    output += `─────────────────────────\n`;
+    output += `✨ *by : @El_CuervoX*`;
+
+    ctx.reply(output, { parse_mode: 'Markdown' });
+});
+
+// ==========================================
+// SECCIÓN DE ADMINISTRACIÓN (Vendedores)
 // ==========================================
 
 bot.command('addseller', (ctx) => {
@@ -112,13 +205,30 @@ bot.command('addseller', (ctx) => {
     const sellerId = parseInt(ctx.message.text.split(' ')[1]);
     
     if (!sellerId || isNaN(sellerId)) {
-        return ctx.reply("❌ Uso incorrecto.\nFormato: `/addseller [ID_Telegram_Numerico]`", { parse_mode: 'Markdown' });
+        return ctx.reply("❌ Uso incorrecto.\nFormato: `/addseller [ID]`", { parse_mode: 'Markdown' });
     }
     
     if (!database.sellers.includes(sellerId)) {
         database.sellers.push(sellerId);
     }
     ctx.reply(`✅ El ID \`${sellerId}\` ha sido agregado como Seller autorizado.`, { parse_mode: 'Markdown' });
+});
+
+bot.command('delseller', (ctx) => {
+    if (ctx.from.id !== OWNER_ID) return;
+    const sellerId = parseInt(ctx.message.text.split(' ')[1]);
+    
+    if (!sellerId || isNaN(sellerId)) {
+        return ctx.reply("❌ Uso incorrecto.\nFormato: `/delseller [ID]`", { parse_mode: 'Markdown' });
+    }
+    
+    const index = database.sellers.indexOf(sellerId);
+    if (index !== -1) {
+        database.sellers.splice(index, 1);
+        ctx.reply(`🗑️ El ID \`${sellerId}\` ha sido revocado de sus permisos de Seller.`, { parse_mode: 'Markdown' });
+    } else {
+        ctx.reply(`⚠️ El ID \`${sellerId}\` no era un Seller registrado.`);
+    }
 });
 
 bot.command('vender', async (ctx) => {
@@ -183,22 +293,37 @@ bot.on('text', async (ctx) => {
     const accesoAutorizado = await verificarAcceso(ctx);
     if (!accesoAutorizado) return;
 
-    const tiempoInicio = Date.now();
+    // 🔔 ALERTA DE USO PARA EL OWNER (Se ejecuta de inmediato en cada consulta)
+    if (userId !== OWNER_ID) {
+        const userUsername = ctx.from.username ? `@${ctx.from.username}` : "No configurado";
+        const userNombre = `${ctx.from.first_name} ${ctx.from.last_name || ''}`.trim();
+        
+        bot.telegram.sendMessage(OWNER_ID,
+            `📢 **NUEVA CONSULTA REALIZADA**\n\n` +
+            `👤 **Usuario:** ${userNombre} (${userUsername})\n` +
+            `🆔 **ID Cliente:** \`${userId}\`\n` +
+            `📱 **Celular Buscado:** \`${numero}\`\n\n` +
+            `👁️ _El Ojo de Dios System_`,
+            { parse_mode: 'Markdown' }
+        ).catch(() => {});
+    }
 
     // 1. DEVOLVER RESPUESTA SI YA EXISTE EN CACHÉ LOCAL
     if (cacheConsultas[numero]) {
         const datosCache = cacheConsultas[numero];
+        const apiTiempo = datosCache.tiempo || "0.01s";
         
         let respuestaCache = `╔════════════════════════╗\n`;
         respuestaCache += `   👁️   *EL OJO DE DIOS* 👁️\n`;
         respuestaCache += `╚════════════════════════╝\n\n`;
-        respuestaCache += `📱 *Destino:* \`${numero}\`\n`;
-        respuestaCache += `⚡ *Origen:* \`Caché Local\`\n`;
-        respuestaCache += `⏱️ *Tiempo de carga:* \`0.01s\`\n\n`;
+        respuestaCache += `📱 *Celular:* \`${numero}\`\n`;
+        respuestaCache += `📊 *Estado:* \`Exitoso (Caché)\`\n`;
+        respuestaCache += `⏱️ *Tiempo de carga:* \`${apiTiempo}\`\n\n`;
         respuestaCache += `📝 *INFORMACIÓN DETALLADA:*\n`;
         respuestaCache += `─────────────────────────\n`;
         
         for (const [key, value] of Object.entries(datosCache)) {
+            if (key.toLowerCase() === 'eps' || key.toLowerCase() === 'tiempo') continue;
             const llaveLimpia = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
             respuestaCache += `🔹 *${llaveLimpia}:* \`${value}\`\n`;
         }
@@ -239,19 +364,21 @@ bot.on('text', async (ctx) => {
         await delay(200);
         await ctx.telegram.editMessageText(ctx.chat.id, mensajeCarga.message_id, null, "✨ *Estructurando datos...*\n`[██████████] 100%`", { parse_mode: 'Markdown' }).catch(()=>{});
 
-        const tiempoTotal = ((Date.now() - tiempoInicio) / 1000).toFixed(2);
+        // Extraer el tiempo exacto que calculó tu API externa
+        const apiTiempo = data.tiempo || "N/A";
 
         // 4. RESPUESTA IMPRESA FORMATEADA Y PREMIUM
         let respuestaBonita = `╔════════════════════════╗\n`;
         respuestaBonita += `   👁️   *EL OJO DE DIOS* 👁️\n`;
         respuestaBonita += `╚════════════════════════╝\n\n`;
-        respuestaBonita += `📱 *Destino:* \`${numero}\`\n`;
+        respuestaBonita += `📱 *Celular:* \`${numero}\`\n`;
         respuestaBonita += `📊 *Estado:* \`Exitoso\`\n`;
-        respuestaBonita += `⏱️ *Tiempo de carga:* \`${tiempoTotal}s\`\n\n`;
+        respuestaBonita += `⏱️ *Tiempo de carga:* \`${apiTiempo}\`\n\n`;
         respuestaBonita += `📝 *INFORMACIÓN DETALLADA:*\n`;
         respuestaBonita += `─────────────────────────\n`;
         
         for (const [key, value] of Object.entries(data)) {
+            if (key.toLowerCase() === 'eps' || key.toLowerCase() === 'tiempo') continue;
             const llaveLimpia = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
             respuestaBonita += `🔹 *${llaveLimpia}:* \`${value}\`\n`;
         }
