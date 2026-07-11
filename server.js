@@ -1,8 +1,8 @@
 const { Telegraf } = require('telegraf');
 const axios = require('axios');
 
-// ⚠️ REEMPLAZA ESTO CON EL TOKEN QUE TE DIO @BotFather
-const bot = new Telegraf('8664870579:AAGW8_IVPc98S3U4SRrY4mxjYvuqV4apkdI'); 
+// Token oficial configurado
+const bot = new Telegraf('8664870579:AAGIej251Y_tj2n6VcESVjAyvxcFeoy0TVo'); 
 
 // ID del Dueño Absoluto
 const OWNER_ID = 8116120039;
@@ -44,7 +44,7 @@ async function verificarAcceso(ctx) {
     }
 }
 
-// Función auxiliar para generar el panel /start (se reutiliza si un usuario usa /panel)
+// Función auxiliar para generar el panel /start
 function enviarStart(ctx) {
     const userId = ctx.from.id;
     const username = ctx.from.username ? `@${ctx.from.username}` : "No configurado";
@@ -70,7 +70,7 @@ function enviarStart(ctx) {
         }
     }
 
-    let bienvenidaPanel = `👁️ *¡Bienvenido al Ojo de Dios!*\n`;
+    let bienvenidaPanel = `👁️ *¡Bienvenido al Ojo de Dios!* \n`;
     bienvenidaPanel += `Para realizar una consulta presiona el comando /nequi\n\n`;
     bienvenidaPanel += `╔════════════════════════╗\n`;
     bienvenidaPanel += `   👤   *MI PERFIL DE ACCESO*   \n`;
@@ -86,7 +86,7 @@ function enviarStart(ctx) {
 }
 
 // ==========================================
-// COMANDO /START (UNIFICADO CON /ME)
+// COMANDO /START 
 // ==========================================
 
 bot.start((ctx) => {
@@ -110,7 +110,6 @@ bot.command('panel', (ctx) => {
     const esSeller = database.sellers.includes(userId);
     const esOwner = userId === OWNER_ID;
 
-    // RESTRICCIÓN: Si no es ni seller ni owner, se le deniega el panel y se le manda su /start
     if (!esSeller && !esOwner) {
         return enviarStart(ctx);
     }
@@ -148,13 +147,12 @@ bot.command('lista', (ctx) => {
     const esSeller = database.sellers.includes(userId);
     const esOwner = userId === OWNER_ID;
 
-    if (!esSeller && !esOwner) return; // Comando oculto para usuarios normales
+    if (!esSeller && !esOwner) return; 
 
     let output = `╔════════════════════════╗\n`;
     output += `   📋   *BASE DE DATOS ACTIVA*   \n`;
     output += `╚════════════════════════╝\n\n`;
 
-    // 1. Mostrar Sellers (Solo si el que ejecuta es el Owner)
     if (esOwner) {
         output += `💼 *VENDEDORES AUTORIZADOS (${database.sellers.length}):*\n`;
         if (database.sellers.length === 0) {
@@ -167,7 +165,6 @@ bot.command('lista', (ctx) => {
         output += `─────────────────────────\n\n`;
     }
 
-    // 2. Mostrar Clientes VIP Activos
     const vipsKeys = Object.keys(database.vips);
     output += `💎 *CLIENTES CON ACCESO VIP (${vipsKeys.length}):*\n`;
     
@@ -293,7 +290,6 @@ bot.on('text', async (ctx) => {
     const accesoAutorizado = await verificarAcceso(ctx);
     if (!accesoAutorizado) return;
 
-    // 🔔 ALERTA DE USO PARA EL OWNER (Se ejecuta de inmediato en cada consulta)
     if (userId !== OWNER_ID) {
         const userUsername = ctx.from.username ? `@${ctx.from.username}` : "No configurado";
         const userNombre = `${ctx.from.first_name} ${ctx.from.last_name || ''}`.trim();
@@ -308,7 +304,6 @@ bot.on('text', async (ctx) => {
         ).catch(() => {});
     }
 
-    // 1. DEVOLVER RESPUESTA SI YA EXISTE EN CACHÉ LOCAL
     if (cacheConsultas[numero]) {
         const datosCache = cacheConsultas[numero];
         const apiTiempo = datosCache.tiempo || "0.01s";
@@ -334,7 +329,6 @@ bot.on('text', async (ctx) => {
         return ctx.reply(respuestaCache, { parse_mode: 'Markdown' });
     }
 
-    // 2. ANIMACIÓN DE LA BARRA DE CARGA
     const mensajeCarga = await ctx.reply("⏳ *Iniciando consulta...*\n`[░░░░░░░░░░] 0%`", { parse_mode: 'Markdown' });
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
     
@@ -349,10 +343,8 @@ bot.on('text', async (ctx) => {
         await delay(400);
         await ctx.telegram.editMessageText(ctx.chat.id, mensajeCarga.message_id, null, "🔍 *Extrayendo información...*\n`[████████░░] 80%`", { parse_mode: 'Markdown' }).catch(()=>{});
 
-        // 3. CAPTURA DE ERROR DE TIEMPO DE ESPERA
         if (data.error) {
             await ctx.telegram.deleteMessage(ctx.chat.id, mensajeCarga.message_id).catch(() => {});
-            
             if (data.error.includes("waiting period")) {
                 return ctx.reply("❌ *SISTEMA BLOQUEADO TEMPORALMENTE*\n\n⚠️ Espera unos minutos y vuelve a consultar.\nLa API requiere un tiempo de espera obligatorio.\n\n*by : @El_CuervoX*", { parse_mode: 'Markdown' });
             }
@@ -364,10 +356,8 @@ bot.on('text', async (ctx) => {
         await delay(200);
         await ctx.telegram.editMessageText(ctx.chat.id, mensajeCarga.message_id, null, "✨ *Estructurando datos...*\n`[██████████] 100%`", { parse_mode: 'Markdown' }).catch(()=>{});
 
-        // Extraer el tiempo exacto que calculó tu API externa
         const apiTiempo = data.tiempo || "N/A";
 
-        // 4. RESPUESTA IMPRESA FORMATEADA Y PREMIUM
         let respuestaBonita = `╔════════════════════════╗\n`;
         respuestaBonita += `   👁️   *EL OJO DE DIOS* 👁️\n`;
         respuestaBonita += `╚════════════════════════╝\n\n`;
@@ -395,7 +385,7 @@ bot.on('text', async (ctx) => {
     }
 });
 
-// Servidor web interno para mantener vivo el Web Service Gratis en Render
+// Servidor web interno para Render
 const http = require('http');
 http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
